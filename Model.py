@@ -11,8 +11,8 @@ class KNearestNeighbour_algorithm:
         self.distance_metric = distance_metric
     
     def fit(self, x_train, y_train):
-        self.x_train = x_train
-        self.y_train = y_train
+        self.x_train = np.array(x_train)
+        self.y_train = np.array(y_train)
 
     def metrics(self, x, y):
         if self.distance_metric == "Euclidean":
@@ -24,7 +24,7 @@ class KNearestNeighbour_algorithm:
     def get_neighbour(self, new_point):
         distances = []
         labels = []
-        
+    
         for i in range(len(self.x_train)):
             distances.append(self.metrics(new_point, self.x_train[i]))
             labels.append(self.y_train[i])
@@ -33,21 +33,20 @@ class KNearestNeighbour_algorithm:
         sorted_data = sorted(zip(distances, labels), key = lambda x : x[0])
 
         # Unpack sorted data into separate lists
-        sorted_distances, sorted_labels = zip(*sorted_data)
-        neighbour_distances = list(sorted_distances)[:self.n_neighbour]
+        _, sorted_labels = zip(*sorted_data)
         neighbour_labels = list(sorted_labels)[:self.n_neighbour]
-        return neighbour_distances, neighbour_labels
+        return neighbour_labels
 
     def predict(self, x_test):
         prediction = []
-        for i in range(len(self.x_test)):
-            neighbour_distances = self.get_neighbour(x_test[i])[0]
-            neighbour_labels = self.get_neighbour(x_test[i])[1]
+        for i in range(len(x_test)):
+            # neighbour_distances = self.get_neighbour(x_test[i])[0]
+            neighbour_labels = self.get_neighbour(x_test[i])
             prediction.append(most_label(neighbour_labels))
         return prediction
 
 
-class Evaluate:
+class evaluation_metrics:
 
     @staticmethod
     def accuracy(y_test, y_pred):
@@ -60,36 +59,37 @@ class Evaluate:
     
     @staticmethod
     def confusion_matrix(y_test, y_pred):
-        classes = np.unique(y_test + y_pred)
+        classes = np.unique(np.concatenate((y_pred, y_test)))
         num_classes = len(classes)
         c_m = np.zeros((num_classes, num_classes), dtype = int)
 
-        for i in range(num_classes):
-                true_class = classes.searchsorted(y_test[i]) 
-                pred_class = classes.searchsorted(y_pred[i])
-                c_m[true_class, pred_class] += 1
+        for i in range(len(classes)):
+            for j in range(len(classes)):
+                c_m[i,j] = np.sum((y_test == classes[i]) & (y_pred == classes[j]))
         return c_m
     
 
     @staticmethod 
-    def classifiication_report(y_test, y_pred):
-        classes = np.unique(y_test + y_pred)
+    def classification_report(y_test, y_pred):
+        classes =  np.unique(np.concatenate((y_pred, y_test)))
         num_classes = len(classes)
         c_m = np.zeros((num_classes, num_classes), dtype = int)
+        c_report = pd.DataFrame(columns = ["precision", "recall", "f1-score", "support"], index = classes)
+
+        for i in range(len(classes)):
+            for j in range(len(classes)):
+                c_m[i,j] = np.sum((y_test == classes[i]) & (y_pred == classes[j]))
 
         for i in range(num_classes):
-            true_class = classes.searchsorted(y_test[i]) 
-            pred_class = classes.searchsorted(y_pred[i])
-            c_m[true_class][pred_class] += 1
-        
-        c_report = pd.DataFrame(index = classes, columns = ["precision", "recall", "f1-score", "support"])
-        for i in range(num_classes):
             # Precision
-            c_report.loc[i, "precision"] = c_m[i, i] / np.sum(c_m[:, i]) 
+            precision  = c_m[i, i] / np.sum(c_m[:, i]) if np.sum(c_m[:, i]) != 0 else 0
+            c_report.loc[i, "precision"] = "{:.2f}".format(precision)
             # Recall
-            c_report.loc[i, "recall"] = c_m[i, i] / np.sum(c_m[i, :])
+            recall = c_m[i, i] / np.sum(c_m[i, :]) if np.sum(c_m[i, :]) != 0 else 0
+            c_report.loc[i, "recall"] = "{:.2f}".format(recall)
             # F1_score
-            c_report.loc[i, "f1-score"] = 2 * ((c_report[i, 0] * c_report[i, 1])/ (c_report[i, 0] + c_report[i, 1]))
+            f1_score = (2 * precision * recall)/ (precision + recall) if (precision + recall) != 0 else 0
+            c_report.loc[i, "f1-score"] = "{:.2f}".format(f1_score)
             # Support
             c_report.loc[i, "support"] = np.sum(c_m[i, :])
 
